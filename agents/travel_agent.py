@@ -5,7 +5,7 @@ from tools.weather import Weather
 from tools.trains import Trains
 from tools.hotels import Hotels
 from tools.flights import Flights
-
+from tools.search import Search
 
 class Agent:
 
@@ -15,12 +15,14 @@ class Agent:
         self.flights = Flights()
         self.weather = Weather()
         self.hotels = Hotels()
+        self.search=Search()
 
         self.tools = [
             self.flights.get_flights,
             self.weather.weather,
             self.hotels.get_hotels,
             self.trains.get_trains,
+            self.search.search_result
         ]
 
     def agent_create(self):
