@@ -1,10 +1,11 @@
-from langchain_community.tools import DuckDuckGoSearchRun
 from langchain.tools import tool
+from tools._search_util import ddg_search
 
-search = DuckDuckGoSearchRun()
 
-class Flights:
-    @tool
-    def get_flights(query: str):
-        """Search flights between cities"""
-        return search.run(query + " flights price airlines")
+@tool
+def get_flights(query: str) -> str:
+    """Search for flights between cities.
+    Input: natural language query e.g. 'Bhubaneswar to Goa cheapest flight March 2026'
+    Returns: flight prices, airlines, and availability info.
+    """
+    return ddg_search(query)

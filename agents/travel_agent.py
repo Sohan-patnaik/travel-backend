@@ -1,48 +1,70 @@
-from langchain_classic.agents import create_react_agent, AgentExecutor
-from langchain_classic import hub
-from services.llm_service import LLM
-from tools.weather import Weather
-from tools.trains import Trains
-from tools.hotels import Hotels
-from tools.flights import Flights
-from tools.search import Search
+import logging
+from functools import lru_cache
+from langchain_classic.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-class Agent:
+from services.llm_service import get_llm
+from tools.weather import weather
+from tools.flights import get_flights
+from tools.hotels import get_hotels
+from tools.trains import get_trains
+from tools.search import search_result
 
-    def __init__(self):
-        self.prompt = hub.pull("hwchase17/react")
-        self.trains = Trains()
-        self.flights = Flights()
-        self.weather = Weather()
-        self.hotels = Hotels()
-        self.search=Search()
+logger = logging.getLogger(__name__)
 
-        self.tools = [
-            self.flights.get_flights,
-            self.weather.weather,
-            self.hotels.get_hotels,
-            self.trains.get_trains,
-            self.search.search_result
-        ]
+TOOLS = [get_flights, weather, get_hotels, get_trains, search_result]
 
-    def agent_create(self):
-        llm = LLM().get_llm()
+SYSTEM_PROMPT = """You are an expert AI travel agent specializing in trips within and from India.
 
-        agent = create_react_agent(
-            llm=llm,
-            tools=self.tools,
-            prompt=self.prompt
-        )
+STRICT RULES — follow these exactly:
+1. Call each tool AT MOST ONCE per user query. Never retry a tool with the same or similar input.
+2. If a tool returns partial information, use what you have — do not call it again.
+3. After collecting information from tools, ALWAYS provide a final answer to the user.
+4. Never leave a query unanswered. If data is incomplete, give your best estimate and say so.
 
-        return agent
+When planning trips always provide:
+- Specific cost estimates in INR with a budget breakdown table
+- Practical booking tips (best sites, timing)
+- A day-by-day itinerary
+- Total estimated cost vs the user's stated budget
 
-    def agent_execute(self):
-        agent = self.agent_create()
+Be concise, accurate, and helpful."""
 
-        agent_executor = AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            verbose=True
-        )
 
-        return agent_executor
+@lru_cache(maxsize=1)
+def get_agent_executor() -> AgentExecutor:
+    """Build and cache the AgentExecutor — created once per process."""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ])
+
+    llm = get_llm()
+
+    agent = create_tool_calling_agent(
+        llm=llm,
+        tools=TOOLS,
+        prompt=prompt,
+    )
+
+    return AgentExecutor(
+        agent=agent,
+        tools=TOOLS,
+        verbose=True,
+        max_iterations=8,
+        max_execution_time=60,
+        handle_parsing_errors=True,
+        return_intermediate_steps=False,
+    )
+
+
+def run_agent(query: str) -> str:
+    """Run the travel agent and return a plain-text response."""
+    executor = get_agent_executor()
+    try:
+        result = executor.invoke({"input": query})
+        return result.get("output", "I couldn't find an answer. Please try rephrasing.")
+    except Exception as e:
+        logger.exception("Agent execution failed for query: %s", query)
+        return f"An error occurred while processing your request: {str(e)}"

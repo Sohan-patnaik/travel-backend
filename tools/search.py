@@ -1,9 +1,11 @@
-from langchain_community.tools import tool, DuckDuckGoSearchRun
+from langchain.tools import tool
+from tools._search_util import ddg_search
 
-ddg = DuckDuckGoSearchRun()
 
-class Search:
-    @tool
-    def search_result(query: str):
-        """Search the web for information"""
-        return ddg.invoke(query)
+@tool
+def search_result(query: str) -> str:
+    """General web search for travel information — use for weather, local transport,
+    food costs, sightseeing, visa, or anything not covered by other tools.
+    Input: a clear, specific search query.
+    """
+    return ddg_search(query)

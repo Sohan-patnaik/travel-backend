@@ -1,10 +1,11 @@
-from langchain_community.tools import DuckDuckGoSearchRun
 from langchain.tools import tool
+from tools._search_util import ddg_search
 
-search = DuckDuckGoSearchRun()
 
-class Hotels:
-    @tool
-    def get_hotels(query: str):
-        """Search hotels in a city"""
-        return search.run(query + " best hotels price per night")
+@tool
+def get_hotels(query: str) -> str:
+    """Search for hotels in a city.
+    Input: natural language query e.g. 'budget hotels in Goa under 1000 per night'
+    Returns: hotel names, prices, and booking info.
+    """
+    return ddg_search(query)
